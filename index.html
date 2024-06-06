@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لعبة X & O</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: linear-gradient(to bottom right, #0f2027, #203a43, #2c5364);
+            font-family: Arial, sans-serif;
+            flex-direction: column;
+            color: #fff;
+        }
+        .board {
+            display: grid;
+            grid-template-columns: repeat(3, 100px);
+            grid-template-rows: repeat(3, 100px);
+            gap: 5px;
+            margin-top: 20px;
+        }
+        .cell {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: white;
+            border: 2px solid #ccc;
+            font-size: 2em;
+            cursor: pointer;
+        }
+        .cell:hover {
+            background-color: #e0e0e0;
+        }
+        .winner {
+            margin-top: 20px;
+            font-size: 1.5em;
+        }
+        .X {
+            color: red;
+        }
+        .O {
+            color: yellow;
+        }
+        .controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 1em;
+            margin: 5px;
+            cursor: pointer;
+            background-color: #2c5364;
+            color: #fff;
+            border: none;
+            transition: background-color 0.3s;
+        }
+        button:active {
+            background-color: #203a43;
+        }
+        button.active {
+            background-color: gold;
+            color: black;
+        }
+        .scoreboard {
+            margin-top: 20px;
+            font-size: 1.2em;
+            display: flex;
+            justify-content: center;
+        }
+        table {
+            border-collapse: collapse;
+            width: 50%;
+            text-align: center;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 8px;
+        }
+        th {
+            background-color: #203a43;
+        }
+        td {
+            background-color: #2c5364;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <button id="playerVsPlayer">لاعب ضد لاعب</button>
+        <button id="playerVsComputer">لاعب ضد الحاسوب</button>
+        <button id="resetGame">إعادة اللعب</button>
+    </div>
+    <div class="board" id="board">
+        <div class="cell" data-cell></div>
+        <div class="cell" data-cell></div>
+        <div class="cell" data-cell></div>
+        <div class="cell" data-cell></div>
+        <div class="cell" data-cell></div>
+        <div class="cell" data-cell></div>
+        <div class="cell" data-cell></div>
+        <div class="cell" data-cell></div>
+        <div class="cell" data-cell></div>
+    </div>
+    <div class="winner" id="winnerMessage"></div>
+    <div class="scoreboard">
+        <table>
+            <thead>
+                <tr>
+                    <th>الجولات</th>
+                    <th>الفائزين X</th>
+                    <th>الفائزين O</th>
+                    <th>تعادل</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td id="rounds">0</td>
+                    <td id="xWins">0</td>
+                    <td id="oWins">0</td>
+                    <td id="draws">0</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        const cells = document.querySelectorAll('[data-cell]');
+        const board = document.getElementById('board');
+        const winnerMessage = document.getElementById('winnerMessage');
+        const playerVsPlayerButton = document.getElementById('playerVsPlayer');
+        const playerVsComputerButton = document.getElementById('playerVsComputer');
+        const resetGameButton = document.getElementById('resetGame');
+        const roundsDisplay = document.getElementById('rounds');
+        const xWinsDisplay = document.getElementById('xWins');
+        const oWinsDisplay = document.getElementById('oWins');
+        const drawsDisplay = document.getElementById('draws');
+        let currentPlayer = 'X';
+        let isPlayerVsComputer = false;
+        let rounds = 0;
+        let xWins = 0;
+        let oWins = 0;
+        let draws = 0;
+        const WINNING_COMBINATIONS = [
+            [0, 1, 2],
+            [3, 4, 5],
+            [6, 7, 8],
+            [0, 3, 6],
+            [1, 4, 7],
+            [2, 5, 8],
+            [0, 4, 8],
+            [2, 4, 6]
+        ];
+
+        function setActiveButton(button) {
+            document.querySelectorAll('button').forEach(btn => btn.classList.remove('active'));
+            button.classList.add('active');
+        }
+
+        playerVsPlayerButton.addEventListener('click', () => {
+            isPlayerVsComputer = false;
+            resetGame();
+            setActiveButton(playerVsPlayerButton);
+        });
+
+        playerVsComputerButton.addEventListener('click', () => {
+            isPlayerVsComputer = true;
+            resetGame();
+            setActiveButton(playerVsComputerButton);
+        });
+
+        resetGameButton.addEventListener('click', () => {
+            resetGame();
+            setActiveButton(resetGameButton);
+        });
+
+        function handleClick(e) {
+            const cell = e.target;
+            if (cell.textContent !== '') return;
+
+            placeMark(cell, currentPlayer);
+            if (checkWin(currentPlayer)) {
+                winnerMessage.textContent = `اللاعب ${currentPlayer} هو الفائز!`;
+                endGame();
+                updateScore(currentPlayer);
+            } else if (isDraw()) {
+                winnerMessage.textContent = 'تعادل!';
+                updateScore(null);
+            } else {
+                swapTurns();
+                if (isPlayerVsComputer && currentPlayer === 'O') {
+                    computerMove();
+                }
+            }
+        }
+
+        function placeMark(cell, player) {
+            cell.textContent = player;
+            cell.classList.add(player);
+        }
+
+        function swapTurns() {
+            currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+        }
+
+        function checkWin(player) {
+            return WINNING_COMBINATIONS.some(combination => {
+                return combination.every(index => {
+                    return cells[index].textContent === player;
+                });
+            });
+        }
+
+        function isDraw() {
+            return [...cells].every(cell => {
+                return cell.textContent === 'X' || cell.textContent === 'O';
+            });
+        }
+
+        function endGame() {
+            cells.forEach(cell => cell.removeEventListener('click', handleClick));
+        }
+
+        function resetGame() {
+            cells.forEach(cell => {
+                cell.textContent = '';
+                cell.classList.remove('X', 'O');
+                cell.addEventListener('click', handleClick, { once: true });
+            });
+            winnerMessage.textContent = '';
+            currentPlayer = 'X';
+        }
+
+        function updateScore(winner) {
+            rounds++;
+            roundsDisplay.textContent = rounds;
+            if (winner === 'X') {
+                xWins++;
+                xWinsDisplay.textContent = xWins;
+            } else if (winner === 'O') {
+                oWins++;
+                oWinsDisplay.textContent = oWins;
+            } else {
+                draws++;
+                drawsDisplay.textContent = draws;
+            }
+        }
+
+        function computerMove() {
+            const bestMove = getBestMove();
+            const cell = cells[bestMove];
+            placeMark(cell, 'O');
+            if (checkWin('O')) {
+                winnerMessage.textContent = `اللاعب O هو الفائز!`;
+                endGame();
+                updateScore('O');
+            } else if (isDraw()) {
+                winnerMessage.textContent = 'تعادل!';
+                updateScore(null);
+            } else {
+                swapTurns();
+            }
+        }
+
+        function getBestMove() {
+            let bestScore = -Infinity;
+            let move;
+            cells.forEach((cell, index) => {
+                if (cell.textContent === '') {
+                    cell.textContent = 'O';
+                    let score = minimax(cells, 0, false);
+                    cell.textContent = '';
+                    if (score > bestScore) {
+                        bestScore = score;
+                        move = index;
+                    }
+                }
+            });
+            return move;
+        }
+
+        function minimax(board, depth, isMaximizing) {
+            if (checkWin('O')) {
+                return 10;
+            } else if (checkWin('X')) {
+                return -10;
+            } else if (isDraw()) {
+                return 0;
+            }
+
+            if (isMaximizing) {
+                let bestScore = -Infinity;
+                cells.forEach(cell => {
+                    if (cell.textContent === '') {
+                        cell.textContent = 'O';
+                        let score = minimax(board, depth + 1, false);
+                        cell.textContent = '';
+                        bestScore = Math.max(score, bestScore);
+                    }
+                });
+                return bestScore;
+            } else {
+                let bestScore = Infinity;
+                cells.forEach(cell => {
+                    if (cell.textContent === '') {
+                        cell.textContent = 'X';
+                        let score = minimax(board, depth + 1, true);
+                        cell.textContent = '';
+                        bestScore = Math.min(score, bestScore);
+                    }
+                });
+                return bestScore;
+            }
+        }
+
+        resetGame();
+    </script>
+</body>
+</html>
+
